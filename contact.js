@@ -29,7 +29,7 @@
     button.textContent = 'Wird gesendet …';
     form.setAttribute('aria-busy', 'true');
     status.dataset.state = 'pending';
-    status.textContent = 'Deine Nachricht wird übermittelt.';
+    status.textContent = 'Deine Demo-Nachricht wird übermittelt.';
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
     try {
@@ -39,7 +39,7 @@
       });
       if (!response.ok) throw new Error('Request rejected');
       status.dataset.state = 'success';
-      status.textContent = 'Danke! Deine Anfrage wurde entgegengenommen.';
+      status.textContent = 'Danke! Die Demo-Nachricht wurde vom Webhook entgegengenommen.';
       form.reset();
     } catch {
       status.dataset.state = 'error';
