@@ -20,7 +20,7 @@
    endpoint = new URL('/rest/v1/' + config.table, base);
   } catch { status.dataset.state='error';status.textContent='Die Anmeldung ist derzeit nicht verfügbar.';return; }
   busy=true; button.disabled=true; button.textContent='Wird gespeichert …';form.setAttribute('aria-busy','true');
-  status.dataset.state='pending';status.textContent='Deine Anmeldung wird gespeichert.';
+  status.dataset.state='pending';status.textContent='Dein Demo-Eintrag wird gespeichert.';
   const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),15000);
   try {
    const response = await fetch(endpoint.href, {
@@ -32,7 +32,7 @@
    let duplicate=false;
    if(response.status===409){try{duplicate=(await response.json()).code==='23505';}catch{}}
    if(!response.ok && !duplicate) throw Error();
-   status.dataset.state='success';status.textContent='Danke! Deine Adresse wurde vorgemerkt oder ist bereits eingetragen. Aktuell werden noch keine E-Mails versendet.';
+   status.dataset.state='success';status.textContent='Danke! Der Demo-Eintrag wurde gespeichert oder ist bereits vorhanden. Es werden keine E-Mails versendet.';
    form.reset();
   }catch{
    status.dataset.state='error';status.textContent='Die Speicherung konnte nicht bestätigt werden. Deine Eingaben bleiben erhalten. Bitte versuche es später erneut.';
