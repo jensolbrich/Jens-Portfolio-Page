@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notizen-Sortierer</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --text: #1d1d1f; --muted: #6b6b70;
+    --accent: #1f4e79; --accent-hover: #163a5a; --border: #e2e0db;
+    --ok: #2e7d32; --err: #c62828;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--text); line-height: 1.5; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 28px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+          padding: 24px; margin-bottom: 20px; }
+  label { display: block; font-weight: 600; margin: 0 0 6px; }
+  input, textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--border);
+                    border-radius: 8px; background: #fff; color: var(--text); }
+  textarea { min-height: 200px; resize: vertical; }
+  .field { margin-bottom: 16px; }
+  button { font: inherit; font-weight: 600; background: var(--accent); color: #fff; border: 0;
+           border-radius: 8px; padding: 12px 22px; cursor: pointer; }
+  button:hover { background: var(--accent-hover); }
+  button:disabled { opacity: .6; cursor: wait; }
+  #status { margin-top: 14px; font-size: .95rem; min-height: 1.4em; }
+  #status.ok { color: var(--ok); } #status.err { color: var(--err); }
+  .result h2 { font-size: 1.05rem; margin: 18px 0 6px; color: var(--accent); }
+  .result h2:first-child { margin-top: 0; }
+  .result ul { margin: 0; padding-left: 20px; }
+  .result p { margin: 0; }
+  pre { white-space: pre-wrap; word-break: break-word; background: var(--bg); padding: 12px;
+        border-radius: 8px; font-size: .85rem; margin: 0; }
+  .hidden { display: none; }
+  footer { color: var(--muted); font-size: .85rem; text-align: center; margin-top: 24px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Notizen-Sortierer</h1>
+  <p class="lead">Unsortierte Notizen rein – Zusammenfassung, Entscheidungen und To-dos raus.</p>
+
+  <form class="card" id="form">
+    <div class="field">
+      <label for="name">Dein Name (optional)</label>
+      <input id="name" name="name" type="text" placeholder="z. B. Jens">
+    </div>
+    <div class="field">
+      <label for="notes">Deine Notizen</label>
+      <textarea id="notes" name="notes" required
+        placeholder="Meeting-Notizen, Stichpunkte, Gedanken … einfach reinkopieren."></textarea>
+    </div>
+    <button type="submit" id="submit">Notizen sortieren</button>
+    <div id="status" role="status"></div>
+  </form>
+
+  <section class="card result hidden" id="result"></section>
+
+  <footer>Automatisiert mit n8n · Prototyp aus der Fortbildung „KI Manager“</footer>
+</main>
+
+<script>
+  // ⬇️ Hier die Webhook-URL aus n8n eintragen (erst Test-URL, später Production-URL)
+  const WEBHOOK_URL = "https://ki-automatisierung.startplatz-ai-hub.de/webhook/notizen";
+
+  const form = document.getElementById("form");
+  const btn = document.getElementById("submit");
+  const statusEl = document.getElementById("status");
+  const resultEl = document.getElementById("result");
+
+  function setStatus(text, type) {
+    statusEl.textContent = text;
+    statusEl.className = type || "";
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
+
+  // Macht aus verschiedenen Antwortformaten ein einheitliches Objekt
+  function normalize(data) {
+    if (Array.isArray(data)) data = data[0] || {};
+    // Der n8n-AI-Agent liefert oft { output: "...JSON als Text..." }
+    if (data && typeof data.output === "string") {
+      const cleaned = data.output.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
+      try { data = JSON.parse(cleaned); } catch (e) { return { summary: data.output }; }
+    } else if (data && data.output && typeof data.output === "object") {
+      data = data.output;
+    }
+    return data || {};
+  }
+
+  function list(items) {
+    if (!Array.isArray(items) || items.length === 0) return "<p>–</p>";
+    return "<ul>" + items.map(i => "<li>" + esc(i) + "</li>").join("") + "</ul>";
+  }
+
+  function render(raw) {
+    const d = normalize(raw);
+    const known = d.summary !== undefined || d.decisions !== undefined || d.todos !== undefined;
+    let html = "";
+    if (known) {
+      html += "<h2>Zusammenfassung</h2><p>" + esc(d.summary || "–") + "</p>";
+      html += "<h2>Entscheidungen</h2>" + list(d.decisions);
+      html += "<h2>To-dos</h2>" + list(d.todos);
+    } else {
+      html += "<h2>Antwort von n8n</h2><pre>" + esc(JSON.stringify(raw, null, 2)) + "</pre>";
+    }
+    resultEl.innerHTML = html;
+    resultEl.classList.remove("hidden");
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const notes = document.getElementById("notes").value.trim();
+    if (!notes) return;
+
+    btn.disabled = true;
+    resultEl.classList.add("hidden");
+    setStatus("Wird verarbeitet …");
+
+    try {
+      const res = await fetch(WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: document.getElementById("name").value.trim(),
+          notes: notes,
+          timestamp: new Date().toISOString(),
+          source: "website"
+        })
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch (err) { data = { summary: text }; }
+      render(data);
+      setStatus("Fertig ✓", "ok");
+    } catch (err) {
+      console.error(err);
+      setStatus("Das hat nicht geklappt (" + err.message + "). Ist der n8n-Workflow aktiv bzw. lauscht er gerade?", "err");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
