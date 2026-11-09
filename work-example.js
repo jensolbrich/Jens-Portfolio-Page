@@ -20,7 +20,7 @@
  }
  if(!('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
  const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{
-  if(entry.isIntersecting){entry.target.classList.add('route-visible');observer.unobserve(entry.target);}
+  if(entry.isIntersecting){entry.target.classList.add('focus-visible');observer.unobserve(entry.target);}
  }),{threshold:.2});
- document.querySelectorAll('.signature-route').forEach(route=>{route.classList.add('route-ready');observer.observe(route);});
+ document.querySelectorAll('.focus-lockup').forEach(route=>{route.classList.add('focus-ready');observer.observe(route);});
 })();
